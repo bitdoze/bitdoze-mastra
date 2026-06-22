@@ -36,9 +36,14 @@ output.txt
 node_modules
 dist
 .mastra
+
+# local workspace (filesystem + sandbox working dir)
+workspace/
+skills
 .env.development
 .env
 *.db
 *.db-*
+*.duckdb*
 .netlify
 .vercel
