@@ -33,7 +33,9 @@
         "@mastra/memory": "^1.21.0",
         "@mastra/observability": "^1.15.0",
         "@tiny-fish/sdk": "^0.0.9",
+        "twitter-api-v2": "^1.29.0",
         "ws": "^8.21.0",
+        "youtube-transcript-scraper": "^1.0.0",
         "zod": "^4"
     },
     "trustedDependencies": [

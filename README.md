@@ -1,10 +1,12 @@
 # mastra-app
 
 A general-purpose agentic coding and research assistant built on the
-[Mastra](https://mastra.ai/) framework. A single `assistant` agent that can
-read/write files, run shell commands, search and fetch the live web, automate
-browsers, chat on Discord, pursue durable goals, run on schedules, persist
-memory across sessions, and stay date/time aware.
+[Mastra](https://mastra.ai/) framework. The `assistant` agent can read/write
+files, run shell commands, search and fetch the live web, automate browsers,
+chat on Discord, pursue durable goals, run on schedules, persist memory across
+sessions, and stay date/time aware. A second agent, `youtube-master`, is
+dedicated to planning webdoze YouTube videos, and the daily-digest workflow
+curates AI/tech news, trending GitHub repos, and Hacker News every morning.
 
 > Status: Phases 0-5 from the PRD are implemented (foundation, web tools,
 > browser, Discord, goals/skills, auth/scheduling). Hardening remains.
@@ -17,6 +19,19 @@ memory across sessions, and stay date/time aware.
   executable in the sandbox).
 - **Live web** — search the web with TinyFish (`tinyfish_search`) and fetch
   clean readable content from up to 10 URLs (`tinyfish_fetch`).
+- **YouTube** — fetch video metadata (`fetch-youtube-metadata`) and transcripts
+  (`fetch-youtube-transcript`) for any video URL. (Transcripts may be blocked by
+  YouTube anti-bot from datacenter IPs; metadata works reliably.)
+- **GitHub** — discover trending repos from the last N days
+  (`github_trending_repos`) and read a repo's full details + README
+  (`github_repo`).
+- **Notifications** — post messages to a private Discord channel via webhook
+  (`discord_notify`), auto-split into multiple posts past Discord's 2000-char
+  limit.
+- **Database queries** — run read-only SELECT queries (`query_database`) against
+  the LibSQL store (threads/memory/workflows) or the DuckDB observability store.
+- **X/Twitter** — post tweets (`post_tweet`) via OAuth 2.0 user context with
+  automatic token refresh.
 - **Browser automation** — navigate JS-rendered pages, click elements, type
   text, scroll, take snapshots, and extract structured data with a local
   Playwright-based browser (16 browser tools, live screencast in Studio).
@@ -41,6 +56,9 @@ memory across sessions, and stay date/time aware.
 - **Model:** `opencode-go/glm-5.2` via the OpenCode Go gateway (configurable
   with `AGENT_MODEL`)
 - **Web:** `@tiny-fish/sdk` (search + fetch)
+- **YouTube:** `youtube-transcript-scraper` (captions)
+- **X/Twitter:** `twitter-api-v2` (OAuth 2.0 posting)
+- **Database:** `@libsql/client` + `@duckdb/node-api` (read-only queries)
 - **Browser:** `@mastra/agent-browser` (local Playwright, thread-scoped)
 - **Discord:** `@chat-adapter/discord` (Gateway WebSocket, streaming, typing status)
 - **Memory embeddings:** `@mastra/fastembed` (local bge-small-en-v1.5 via ONNX
@@ -60,6 +78,9 @@ memory across sessions, and stay date/time aware.
   [Discord Developer Portal](https://discord.com/developers/applications)
 - **Auth tokens** (`ADMIN_API_KEY`, optionally `MEMBER_API_KEY`) for Studio
   login and API access
+- Optional: a Discord webhook URL (`DISCORD_NOTIFY_WEBHOOK`) for notifications,
+  and X/Twitter OAuth 2.0 credentials (`X_CLIENT_ID`, `X_OAUTH2_ACCESS_TOKEN`,
+  `X_OAUTH2_REFRESH_TOKEN`) if you want the `post_tweet` tool to publish
 
 ## Setup
 
@@ -86,10 +107,13 @@ memory across sessions, and stay date/time aware.
    # AGENT_MODEL=opencode-go/glm-5.2
    # AGENT_JUDGE_MODEL=opencode-go/glm-5.1
    # AGENT_TIMEZONE=Europe/Bucharest
+   # AGENT_MAX_STEPS=20                # agentic loop step budget (was 5)
    # DATABASE_URL=file:./mastra.db
    # ALLOWED_DIRECTORIES=/home/me/projects/app-a:/home/me/projects/app-b
    # REQUIRE_COMMAND_APPROVAL=true      # set false to skip command approvals
    # MASTRA_AUTO_DETECT_URL=true        # set true behind a reverse proxy
+   # DISCORD_NOTIFY_WEBHOOK=https://discord.com/api/webhooks/...
+   # X_CLIENT_ID=... X_OAUTH2_ACCESS_TOKEN=... X_OAUTH2_REFRESH_TOKEN=...
    ```
 
    > No embedding API key is required. Semantic recall runs locally via
@@ -208,15 +232,25 @@ cd /home/dragos/projects/mastra-app && bun run build && systemctl --user restart
 
 ```
 src/mastra/
-  index.ts                  # Mastra instance: agent, workflow, storage, auth, observability, editor
+  index.ts                  # Mastra instance: agents, workflow, storage, auth, observability, editor
   agents/
-    assistant.ts            # the general-purpose agent (model, tools, memory, workspace, browser, goals, Discord)
+    assistant.ts            # general-purpose agent (files, shell, web, YouTube, GitHub, DB, X, browser, goals, Discord)
+    youtube-master.ts       # webdoze video-planning agent (all tools + webdoze-scriptwriting skill)
   tools/
     tinyfish-client.ts      # shared @tiny-fish/sdk client
     tinyfish-search.ts      # web search tool
     tinyfish-fetch.ts       # clean-content fetch tool
+    youtube-utils.ts        # YouTube URL parsing + timestamp formatting + player-response extraction
+    youtube-transcript-tool.ts  # fetch video transcript (captions)
+    youtube-metadata-tool.ts    # fetch video metadata (title, author, duration, description)
+    github-client.ts        # shared authenticated GitHub REST client (optional GITHUB_TOKEN)
+    github-trending-tool.ts # trending repos by stars/age
+    github-repo-tool.ts     # repo details + README
+    discord-notify.ts       # webhook notification (auto-chunks past 2000 chars)
+    query-database.ts       # read-only SELECT against LibSQL or DuckDB
+    x-post.ts              # post tweet via OAuth 2.0 (twitter-api-v2)
   workflows/
-    daily-digest.ts         # scheduled workflow: web search -> digest -> workspace markdown
+    daily-digest.ts         # scheduled 07:30 workflow: AI/news + GitHub trending + HN -> markdown -> Discord
   memory.ts                 # Memory: semantic recall + resource-scoped working memory
   workspaces.ts             # Workspace: local filesystem + sandbox + BM25 + auto-discovered skills
   browsers.ts               # AgentBrowser: local Playwright, thread-scoped, optional CDP
@@ -225,13 +259,21 @@ src/mastra/
 skills/
   research/SKILL.md         # search -> fetch -> synthesize workflow skill
   engineering/SKILL.md      # lint -> type-check -> test -> build workflow skill
+  webdoze-scriptwriting/    # webdoze video planning skill + references (channel context, voice guide)
 workspace/                  # agent filesystem + sandbox working dir (gitignored)
 ```
 
 ## Key design notes
 
-- **Single agent.** The weather example agent/workflow/scorers shipped with the
-  scaffold were removed. There is one general-purpose agent, `assistant`.
+- **Two agents.** The weather example agent/workflow/scorers shipped with the
+  scaffold were removed. `assistant` is the general-purpose agent; `youtube-master`
+  is a dedicated webdoze video-planning agent with all tools and the
+  `webdoze-scriptwriting` skill loaded.
+- **Single Discord gateway.** Only `assistant` owns the live Discord Gateway
+  connection (`gateway: true`). `youtube-master` runs its Discord adapter with
+  `gateway: false` — Discord allows only one gateway session per bot token, so
+  two listeners would invalidate each other and the bot would appear offline.
+  Both agents still respond to mentions via the shared webhook.
 - **Absolute path resolution.** `mastra dev` runs the bundled server with its
   working directory under `src/mastra/public/`, so relative paths (workspace,
   storage DBs, skills) are unreliable. `paths.ts` anchors all resource paths to
@@ -278,11 +320,26 @@ workspace/                  # agent filesystem + sandbox working dir (gitignored
   `<current-objective>` into the model's context automatically. Custom REST
   routes at `/objective/:agentId` (GET/POST/DELETE) and
   `/objective/:agentId/options` (PATCH) expose goal management over HTTP.
+- **Agentic step budget.** `AGENT_MAX_STEPS` (default 20) caps the number of
+  sequential LLM calls in the loop; applied to every generate/stream via
+  `defaultOptions.maxSteps`. Override if agents stop with "reached maxSteps
+  while tool calls were pending".
+- **webdoze video planning.** The `youtube-master` agent loads the
+  `webdoze-scriptwriting` skill, which captures the channel's unscripted
+  straight-to-camera style, CTR-proven title patterns, retention rules, and a
+  6-section plan format (hook, sticky note, money moments, screen breakdown,
+  retention killers, titles). A satirical "Ce ne enervează" voice guide is
+  bundled as a reference and used **only on explicit request**.
+- **Notification chunking.** `discord_notify` splits long messages into multiple
+  ≤2000-char posts (Discord's limit) at newline boundaries, so full digests are
+  delivered without truncation.
 - **Scheduled workflows.** The `daily-digest` workflow declares a `schedule`
-  with `cron: "0 9 * * *"`. On boot, Mastra auto-registers it. It runs the
-  agent over a web-search prompt and writes a Markdown digest to
-  `workspace/digest-<date>.md`. Pause and resume from Studio's Schedules view
-  or the API.
+  with `cron: "30 7 * * *"` (07:30 in the configured timezone). On boot, Mastra
+  auto-registers it. It runs the agent to curate AI/tech news, trending GitHub
+  repos, and Hacker News stories, writes a Markdown digest to
+  `workspace/digest-<date>.md`, and posts it to a Discord channel via the
+  `discord_notify` webhook. Pause and resume from Studio's Schedules view or the
+  API.
 - **Auth.** `SimpleAuth` maps tokens to users (loaded from
   `ADMIN_API_KEY` / `MEMBER_API_KEY`) and gates both Studio and all `/api/*`
   routes. Route-level authorization is handled by `authorizeUser` (non-EE):
@@ -297,12 +354,17 @@ workspace/                  # agent filesystem + sandbox working dir (gitignored
 Implemented (Phase 0 through Phase 5):
 
 - General-purpose `assistant` agent on the OpenCode Go gateway
+- `youtube-master` agent for webdoze video planning (webdoze-scriptwriting skill)
 - Local workspace (filesystem + sandbox) with safety rails and BM25 search
 - TinyFish web search and fetch tools, with `research` and `engineering` skills
+- YouTube metadata + transcript tools
+- GitHub trending search + repo detail tools
+- Discord webhook notification tool (auto-chunked) and read-only SQL query tool
+- X/Twitter posting via OAuth 2.0
 - Browser automation via AgentBrowser (16 tools, JS-rendered pages, Studio screencast)
-- Discord channel (Gateway WebSocket, streaming, custom typing status, tool approvals)
+- Discord channel (Gateway WebSocket, streaming, custom typing status, tool approvals, single-gateway owner)
 - Durable goals with LLM judge (setObjective, custom REST routes)
-- Scheduled daily-digest workflow (web search, workspace write, Discord posting)
+- Scheduled daily-digest workflow (AI/news + GitHub trending + HN, workspace write, Discord posting)
 - Auth (SimpleAuth) with non-EE route authorization (admin/member roles)
 - Resource-scoped working memory and semantic recall (local embeddings)
 - Current date/time in the system prompt (ISO + year reinforced for web searches)
