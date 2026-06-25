@@ -2,42 +2,23 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { TwitterApi } from "twitter-api-v2";
 
-// Posts a tweet using OAuth 2.0 user context (PKCE). Requires the X Developer
-// app configured with OAuth 2.0 and the tweet.read + tweet.write + users.read
-// scopes. The access token is short-lived; the tool refreshes it on demand
-// using the refresh token + client id (client secret only for confidential
-// apps — this assumes a public PKCE client).
-const CLIENT_ID = process.env.X_CLIENT_ID;
-const CLIENT_SECRET = process.env.X_CLIENT_SECRET; // optional (confidential apps)
-const ACCESS_TOKEN = process.env.X_OAUTH2_ACCESS_TOKEN;
-const REFRESH_TOKEN = process.env.X_OAUTH2_REFRESH_TOKEN;
+// Posts a tweet using OAuth 1.0a user context. Requires the X Developer app
+// configured with Read+Write permissions and four credentials: the app's
+// consumer key/secret (API Key/Secret) plus the user's access token/secret.
+// OAuth 1.0a tokens do not expire, so no refresh flow is needed.
+const API_KEY = process.env.X_API_KEY;
+const API_SECRET = process.env.X_API_SECRET;
+const ACCESS_TOKEN = process.env.X_ACCESS_TOKEN;
+const ACCESS_SECRET = process.env.X_ACCESS_SECRET;
 
-interface TokenResult {
-  access_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-}
-
-async function refreshAccessToken(): Promise<TokenResult | null> {
-  if (!CLIENT_ID || !REFRESH_TOKEN) return null;
-  try {
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: REFRESH_TOKEN,
-      client_id: CLIENT_ID,
-    });
-    if (CLIENT_SECRET) body.set("client_secret", CLIENT_SECRET);
-
-    const res = await fetch("https://api.twitter.com/2/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as TokenResult;
-  } catch {
-    return null;
-  }
+function getClient(): TwitterApi | null {
+  if (!API_KEY || !API_SECRET || !ACCESS_TOKEN || !ACCESS_SECRET) return null;
+  return new TwitterApi({
+    appKey: API_KEY,
+    appSecret: API_SECRET,
+    accessToken: ACCESS_TOKEN,
+    accessSecret: ACCESS_SECRET,
+  });
 }
 
 export const postTweet = createTool({
@@ -54,35 +35,17 @@ export const postTweet = createTool({
     error: z.string().optional(),
   }),
   execute: async (input) => {
-    if (!ACCESS_TOKEN) {
+    const client = getClient();
+    if (!client) {
       return {
         success: false,
         error:
-          "X_OAUTH2_ACCESS_TOKEN is not configured. Set X_CLIENT_ID, X_OAUTH2_ACCESS_TOKEN, and X_OAUTH2_REFRESH_TOKEN in .env.",
+          "X OAuth 1.0a credentials are not configured. Set X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, and X_ACCESS_SECRET in .env.",
       };
     }
 
-    let token = ACCESS_TOKEN;
-    const post = async (tok: string) => {
-      const client = new TwitterApi(tok);
-      return client.v2.tweet(input.text);
-    };
-
     try {
-      let { data, errors } = await post(token);
-
-      // On auth failure, try refreshing the token once and retry.
-      const isAuthError = (e?: any) =>
-        e?.code === 401 || e?.code === 32 || /token|auth/i.test(e?.title ?? e?.detail ?? "");
-      if (errors?.some(isAuthError) || (data === undefined && errors?.some(isAuthError))) {
-        const refreshed = await refreshAccessToken();
-        if (refreshed?.access_token) {
-          token = refreshed.access_token;
-          const retry = await post(token);
-          data = retry.data;
-          errors = retry.errors;
-        }
-      }
+      const { data, errors } = await client.v2.tweet(input.text);
 
       if (errors && errors.length > 0) {
         return {
@@ -94,7 +57,7 @@ export const postTweet = createTool({
       }
 
       const tweetId = data?.id;
-      const username = await new TwitterApi(token)
+      const username = await client
         .currentUser()
         .then((u) => u.screen_name)
         .catch(() => null);
@@ -102,12 +65,16 @@ export const postTweet = createTool({
       return {
         success: true,
         tweetId,
-        url: tweetId && username ? `https://twitter.com/${username}/status/${tweetId}` : undefined,
+        url:
+          tweetId && username
+            ? `https://twitter.com/${username}/status/${tweetId}`
+            : undefined,
       };
     } catch (error: any) {
       const code = error?.code;
       const detail =
         error?.data?.detail ||
+        error?.data?.errors?.[0]?.message ||
         error?.detail ||
         error?.message ||
         (code ? `X API error ${code}` : "Unknown error");
