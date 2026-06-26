@@ -13,33 +13,34 @@ import { DATABASE_URL } from "./paths";
 //   Runtime, so no embedding API key is needed. First use downloads the model.
 // - Working memory: persists across all threads for a resource (user).
 export const memory = new Memory({
-  vector: new LibSQLVector({
-    id: "agent-vector",
-    url: DATABASE_URL,
-  }),
-  embedder: fastembed,
-  options: {
-    semanticRecall: {
-      topK: 3,
-      messageRange: 2,
-    },
-    workingMemory: {
-      enabled: true,
-      scope: "resource",
-      template: `# User Profile
+    vector: new LibSQLVector({
+        id: "agent-vector",
+        url: DATABASE_URL,
+    }),
+    embedder: fastembed,
+    options: {
+        semanticRecall: {
+            topK: 3,
+            messageRange: 2,
+        },
+        workingMemory: {
+            enabled: true,
+            scope: "resource",
+            template: `# User Profile
 
 ## Identity
-- Name:
-- Timezone:
-- Preferred Language:
-
+- Name: Dragos
+- Timezone: Bucharest
+- Preferred Language: English
+- About me: I am an online blogger that writes articles on nitdoze.com on web, dev, ai, devops. I have also an youtube channel @webdoze where I post videos on similar subjects.
+- My goal: My goal is to learn new things, be informed and make money online. I like building things and I need help from AI.
 ## Environment
-- OS:
-- Runtime/Stack:
+- OS: Ubuntu
+- Runtime/Stack: mastra.ai you are build on, the project is under /home/dragos/projects/mastra-app, the skill to see the docs under /home/dragos/projects/mastra-app/.agents/skills/mastra/SKILL.md. More details under /home/dragos/projects/mastra-app/AGENTS.md
 - Editor:
 
 ## Preferences
-- Communication Style: [e.g., concise, detailed]
+- Communication Style:  concise
 - Coding Conventions:
 
 ## Session State
@@ -47,6 +48,6 @@ export const memory = new Memory({
 - Open Questions:
 - Decisions Made:
 `,
+        },
     },
-  },
 });
