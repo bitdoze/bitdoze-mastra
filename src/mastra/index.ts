@@ -13,12 +13,13 @@ import {
 import { MastraEditor } from "@mastra/editor";
 import { assistant } from "./agents/assistant";
 import { youtubeMaster } from "./agents/youtube-master";
+import { videoCreator } from "./agents/video-creator";
 import { auth } from "./auth";
 import { dailyDigest } from "./workflows/daily-digest";
 import { DATABASE_URL, DUCKDB_PATH } from "./paths";
 
 export const mastra = new Mastra({
-    agents: { assistant, youtubeMaster },
+    agents: { assistant, youtubeMaster, videoCreator },
     workflows: { dailyDigest },
     editor: new MastraEditor(),
     storage: new MastraCompositeStore({

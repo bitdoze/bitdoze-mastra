@@ -56,6 +56,26 @@ if (!requireCommandApproval) {
 // the parent directory; the workspace scans subdirectories for SKILL.md files.
 // Drop a new skill into ./skills/<name>/SKILL.md and it's picked up on restart
 // — no code changes needed.
+
+// Environment variables passed to the sandbox so agent-run commands (e.g.
+// HyperFrames CLI, TTS, renders) have access to Chrome, Python venv, etc.
+// LocalSandbox only inherits PATH by default; everything else must be explicit.
+const hfPythonPath = process.env.HYPERFRAMES_PYTHON_PATH;
+const sandboxEnv: NodeJS.ProcessEnv = {
+  HOME: process.env.HOME,
+  USER: process.env.USER,
+  SHELL: process.env.SHELL,
+  PATH: hfPythonPath
+    ? `${hfPythonPath}:${process.env.PATH ?? ""}`
+    : process.env.PATH,
+  ...(process.env.HYPERFRAMES_BROWSER_PATH
+    ? { HYPERFRAMES_BROWSER_PATH: process.env.HYPERFRAMES_BROWSER_PATH }
+    : {}),
+  ...(process.env.GITHUB_TOKEN
+    ? { GITHUB_TOKEN: process.env.GITHUB_TOKEN }
+    : {}),
+};
+
 export const workspace = new Workspace({
   id: "default",
   name: "Default Workspace",
@@ -63,7 +83,10 @@ export const workspace = new Workspace({
     basePath: WORKSPACE_PATH,
     allowedPaths: allowedDirectories,
   }),
-  sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_PATH }),
+  sandbox: new LocalSandbox({
+    workingDirectory: WORKSPACE_PATH,
+    env: sandboxEnv,
+  }),
   bm25: true,
   skills: [SKILLS_PATH],
   skillSource: new LocalSkillSource({ basePath: PROJECT_ROOT }),
