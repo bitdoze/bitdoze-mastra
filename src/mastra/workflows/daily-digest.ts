@@ -25,15 +25,30 @@ const digestStep = createStep({
 
         try {
             const result = await agent.generate(
-                `You are a daily tech news curator. Today is ${today}. Fetch and compile the following:
+                `You are a daily tech news curator. Today is ${today}. Research and compile a comprehensive daily digest using web search and the github_trending_repos tool. Cover these sections:
 
-1. **AI & Tech News** - Search for the latest AI and technology news from today. Find the top 5 most important stories with titles, sources, and one-sentence descriptions.
+## 1. AI News (top 5)
+Search for the latest AI developments from the last 24-48 hours. Focus on: new model releases, benchmark results, open-source AI tools, AI agents, local AI, regulation, and research breakthroughs. For each: title, source link, and 2-3 sentences of real substance (not fluff).
 
-2. **Trending GitHub Repos** - Use the github_trending_repos tool to find trending repositories from the last 7 days. Focus on AI, developer tools, and open source projects. List the top 5 with name, description, stars, and language.
+## 2. Developer & DevOps News (top 5)
+Search for news in: Docker, Kubernetes, CI/CD, cloud (AWS/GCP/Azure/Hetzner/Bunny), infrastructure-as-code, observability, terminal/CLI tools, and developer experience. For each: title, source link, and why it matters to a developer.
 
-3. **Hacker News Top Stories** - Search for today's top Hacker News stories. List the top 5 with titles, points, and brief descriptions.
+## 3. Self-Hosting & Homelab (top 3-4)
+Search for new self-hosted apps, Docker containers, home server builds, and networking tools trending today. For each: name, GitHub or project link, and what it does.
 
-Format everything as a clean markdown digest with sections for each category. Include links where available.`,
+## 4. Trending GitHub Repositories (top 10)
+Use the github_trending_repos tool to find trending repos from the last 7 days. Pick the 10 most interesting across AI, developer tools, CLI utilities, self-hosting, and open source. For each: repo name with link, one-line description, language, and star count.
+
+## 5. Hacker News Top Stories (top 5)
+Search for today's top Hacker News stories. For each: title, link, points, and a brief description.
+
+## 6. Reddit Highlights (top 5)
+Search Reddit for trending posts from: r/MachineLearning, r/selfhosted, r/devops, r/programming, r/docker, rLocalLLaMA, r/homelab. Pick the 5 most interesting or discussed posts. For each: subreddit, title, link, and why it's noteworthy.
+
+## 7. Articles to Write for bitdoze.com (3-5 ideas)
+Based on everything you found today, suggest 3-5 article ideas for bitdoze.com (covers: AI tools, self-hosting, Docker, VPS, CDN, developer tooling, Mac/Linux setup). For each idea: a compelling title, a 1-2 sentence pitch on what the article would cover and why it's timely, and the target audience. Prioritize topics that are trending but don't yet have good tutorials or guides.
+
+Format everything as clean markdown with clear section headers, bullet points, and links. Be specific and factual — no filler or hype. If you couldn't find something for a section, say so rather than guessing.`,
                 {
                     memory: {
                         thread: `digest-${today}`,
@@ -115,7 +130,7 @@ export const dailyDigest = createWorkflow({
         cron: "30 7 * * *",
         timezone: process.env.AGENT_TIMEZONE ?? "Europe/Bucharest",
         inputData: {
-            topic: "AI and technology news, trending GitHub repos, Hacker News off the day",
+            topic: "AI news, DevOps news, self-hosting, trending GitHub repos, Hacker News, Reddit highlights, article ideas for bitdoze.com",
         },
     },
 })

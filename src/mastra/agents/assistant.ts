@@ -13,6 +13,7 @@ import { githubRepo } from "../tools/github-repo-tool";
 import { discordNotify } from "../tools/discord-notify";
 import { queryDatabase } from "../tools/query-database";
 import { postTweet } from "../tools/x-post";
+import { postBluesky } from "../tools/bluesky-post";
 
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "opencode-go/glm-5.2";
 const AGENT_JUDGE_MODEL = process.env.AGENT_JUDGE_MODEL ?? "opencode-go/glm-5.1";
@@ -48,6 +49,7 @@ const TOOL_LABELS: Record<string, string> = {
     discordNotify: "is sending a notification",
     queryDatabase: "is querying the database",
     postTweet: "is posting to X",
+    postBluesky: "is posting to Bluesky",
     browser_goto: "is opening a website",
     browser_snapshot: "is reading the page",
     browser_click: "is clicking a button",
@@ -107,7 +109,7 @@ Guidelines:
     judge: AGENT_JUDGE_MODEL,
     maxRuns: 50,
   },
-  tools: { tinyfishSearch, tinyfishFetch, youtubeTranscript, youtubeMetadata, githubTrending, githubRepo, discordNotify, queryDatabase, postTweet },
+  tools: { tinyfishSearch, tinyfishFetch, youtubeTranscript, youtubeMetadata, githubTrending, githubRepo, discordNotify, queryDatabase, postTweet, postBluesky },
   // Default execution options applied to every generate/stream call (Studio,
   // Discord, workflows). maxSteps sets the agentic loop budget.
   defaultOptions: { maxSteps: AGENT_MAX_STEPS },

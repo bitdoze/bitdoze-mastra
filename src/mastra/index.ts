@@ -14,13 +14,25 @@ import { MastraEditor } from "@mastra/editor";
 import { assistant } from "./agents/assistant";
 import { youtubeMaster } from "./agents/youtube-master";
 import { videoCreator } from "./agents/video-creator";
+import { bitdozeEditor } from "./agents/bitdoze-editor";
+import { bitdozeJudge } from "./agents/bitdoze-judge";
+import { financeExpert } from "./agents/finance-expert";
 import { auth } from "./auth";
 import { dailyDigest } from "./workflows/daily-digest";
+import { bitdozeArticleUpdate } from "./workflows/bitdoze-article-update";
+import { dailyStockPicks } from "./workflows/daily-stock-picks";
 import { DATABASE_URL, DUCKDB_PATH } from "./paths";
 
 export const mastra = new Mastra({
-    agents: { assistant, youtubeMaster, videoCreator },
-    workflows: { dailyDigest },
+    agents: {
+        assistant,
+        youtubeMaster,
+        videoCreator,
+        bitdozeEditor,
+        bitdozeJudge,
+        financeExpert,
+    },
+    workflows: { dailyDigest, bitdozeArticleUpdate, dailyStockPicks },
     editor: new MastraEditor(),
     storage: new MastraCompositeStore({
         id: "composite-storage",
